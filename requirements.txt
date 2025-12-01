@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+firebase-admin
+replicate
+httpx
+python-dotenv
+google-generativeai
+pydantic[email]
+weasyprint

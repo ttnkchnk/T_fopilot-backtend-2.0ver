@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .header { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .total { font-size: 20px; font-weight: bold; margin-top: 20px; border-top: 1px solid black; padding-top: 10px;}
+    </style>
+</head>
+<body>
+    <div class="header">ІНВОЙС № {{ invoice_number }}</div>
+    <div class="row">
+        <span>Дата:</span> <span>{{ date }}</span>
+    </div>
+    <div class="row">
+        <span>Виконавець:</span> <span>{{ fop_name }}</span>
+    </div>
+    <div class="row">
+        <span>Клієнт:</span> <span>{{ client_name }}</span>
+    </div>
+    <hr>
+    <h3>Послуга:</h3>
+    <p>{{ service_name }}</p>
+    
+    <div class="total">
+        До сплати: {{ amount }} USD
+    </div>
+</body>
+</html>
