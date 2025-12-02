@@ -11,6 +11,8 @@ from types import SimpleNamespace
 from services import auth_service, tax_service
 from models.tax import TaxCalculationRequest
 from core.firebase import ensure_initialized # Імпортуємо Firestore
+from services.calendar_service import TaxCalendarService
+from services.legal_repository import LegalRepository
 
 # Наш оновлений chat_service
 from llm.chat_service import get_gemini_response, detect_intent
@@ -31,6 +33,19 @@ def resolve_current_user(
         # Якщо токен є, але він невалідний — хай підніметься 401, щоб фронт оновив сесію
         return get_current_user(creds)  # type: ignore[arg-type]
     return {"uid": "local-dev"}
+
+
+def build_legal_digest_text(updates) -> str:
+    lines = []
+    for u in updates:
+        summary = u.summary_for_fop3_non_vat or u.summary_general
+        lines.append(f"- [{u.date}] {u.title}\n{summary}")
+    return "\n\n".join(lines)
+
+
+def is_legal_digest_request(message: str) -> bool:
+    low = message.lower()
+    return ("зміни" in low or "оновлення" in low or "дайдж" in low) and ("місяц" in low or "місяць" in low or "month" in low)
 
 # --- Нова модель для повернення історії на фронтенд ---
 class MessageHistory(BaseModel):
@@ -57,32 +72,136 @@ async def chat_with_bot(
         if user_uid == "local-dev":
             profile = SimpleNamespace(first_name="Local User", fop_group=3, tax_rate=0.05)
             total_income = 0
+            recent_incomes = []
+            recent_expenses = []
+            total_expenses = 0
         else:
             profile = auth_service.get_user_profile(user_uid)
             if not profile:
                 raise HTTPException(status_code=404, detail="Профіль користувача не знайдено")
-            income_query = db.collection("incomes").where(
-                filter=FieldFilter("user_uid", "==", user_uid)
-            ).stream()
-            total_income = sum(doc.to_dict().get('amount', 0) for doc in income_query)
+            income_query = (
+                db.collection("incomes")
+                .where(filter=FieldFilter("user_uid", "==", user_uid))
+                .stream()
+            )
+            incomes_list = [doc.to_dict() for doc in income_query]
+            total_income = sum(item.get("amount", 0) for item in incomes_list)
+            recent_incomes = sorted(
+                incomes_list,
+                key=lambda x: x.get("date") if isinstance(x.get("date"), datetime.datetime) else datetime.datetime.min,
+                reverse=True,
+            )[:5]
+
+            try:
+                expense_query = (
+                    db.collection("expenses")
+                    .where(filter=FieldFilter("user_uid", "==", user_uid))
+                    .stream()
+                )
+                expenses_list = [doc.to_dict() for doc in expense_query]
+                total_expenses = sum(item.get("amount", 0) for item in expenses_list)
+                recent_expenses = sorted(
+                    expenses_list,
+                    key=lambda x: x.get("date") if isinstance(x.get("date"), datetime.datetime) else datetime.datetime.min,
+                    reverse=True,
+                )[:5]
+            except Exception:
+                total_expenses = 0
+                recent_expenses = []
         
         tax_request = TaxCalculationRequest(quarterly_income=total_income)
         tax_data = tax_service.calculate_taxes(tax_request, user_uid)
 
         # --- ЕТАП 2: ФОРМУВАННЯ КОНТЕКСТНОГО ПРОМПТУ (як і раніше) ---
+        # Календарні дедлайни (поточний рік)
+        today = datetime.datetime.now()
+        deadlines_decl = TaxCalendarService.get_declaration_deadlines(today.year)
+        deadlines_ep = TaxCalendarService.get_monthly_ep_deadlines(today.year)
+        deadlines_esv = TaxCalendarService.get_quarterly_esv_deadlines(today.year)
+
+        def fmt_recent(items, label: str):
+            if not items:
+                return f"- {label}: немає записів."
+
+            def _fmt_item(it):
+                dt = it.get("date")
+                if isinstance(dt, datetime.datetime):
+                    dt = dt.date()
+                if hasattr(dt, "strftime"):
+                    dt_str = dt.strftime("%d.%m.%Y")
+                else:
+                    dt_str = str(dt)
+                cat = it.get("category") or it.get("type")
+                desc = it.get("description", "")
+                amt = it.get("amount", 0)
+                extra = []
+                if cat:
+                    extra.append(f"категорія: {cat}")
+                if desc:
+                    extra.append(desc)
+                extra_text = f" ({'; '.join(extra)})" if extra else ""
+                return f"{dt_str}: {amt:.2f} грн{extra_text}"
+
+            return f"- {label} (останні): " + "; ".join(_fmt_item(it) for it in items)
+
+        latest_income = recent_incomes[0] if recent_incomes else None
+        latest_expense = recent_expenses[0] if recent_expenses else None
+
         user_context = f"""
         - Ім'я користувача: {profile.first_name}
-        - Група ФОП: {profile.fop_group} група
-        - Ставка податку: {profile.tax_rate * 100}%
+        - Група ФОП: {getattr(profile, 'fop_group', 'невідомо')} група
+        - Ставка податку: {getattr(profile, 'tax_rate', 0)*100}%
         - Дохід за поточний квартал: {total_income:.2f} грн
+        - Витрати за поточний квартал: {total_expenses:.2f} грн
         - Розрахований Єдиний Податок (ЄП): {tax_data.single_tax:.2f} грн
         - Розрахований Єдиний Соціальний Внесок (ЄСВ): {tax_data.social_contribution:.2f} грн
         - Всього податків до сплати: {tax_data.total_tax:.2f} грн
+        - Останній дохід: {fmt_recent([latest_income], 'Дохід останній') if latest_income else '—'}
+        - Остання витрата: {fmt_recent([latest_expense], 'Витрата остання') if latest_expense else '—'}
+        {fmt_recent(recent_incomes, 'Дохід')}
+        {fmt_recent(recent_expenses, 'Витрати')}
+        - Дедлайни декларації: {deadlines_decl}
+        - Дедлайни ЄП: {deadlines_ep}
+        - Дедлайни ЄСВ: {deadlines_esv}
         """
 
-        # --- ЕТАП 3: Спроба розпізнати команду ---
-        intent_data = await detect_intent(request.message)
         reply = None
+
+        # --- ЕТАП 2.1: Запит на правовий дайджест за останній місяць ---
+        if is_legal_digest_request(request.message):
+            start_date = (today - datetime.timedelta(days=30)).date()
+            end_date = today.date()
+            group = getattr(profile, "fop_group", None)
+            vat_status = "vat" if getattr(profile, "is_vat_payer", False) else "non_vat"
+
+            updates = LegalRepository.get_updates_for_period(
+                start_date=start_date,
+                end_date=end_date,
+                group=group,
+                vat_status=vat_status,
+            )
+
+            if not updates:
+                reply = "За останні ~30 днів релевантних змін для вашого профілю ФОП не знайшла."
+            else:
+                digest_text = build_legal_digest_text(updates)
+                prompt = f"""
+Ось перелік змін у законодавстві, що стосуються цього ФОПа:
+
+{digest_text}
+
+Стисло поясни 3–7 пунктами, що змінилось і що їм треба робити / перевірити.
+Пиши українською простою мовою, без юридичних конструкцій.
+"""
+                reply = await get_gemini_response(prompt, user_context)
+        else:
+            reply = None
+
+        # --- ЕТАП 3: Спроба розпізнати команду ---
+        if reply is None:
+            intent_data = await detect_intent(request.message)
+        else:
+            intent_data = None
 
         # Швидкий парсер для декларації без LLM
         def simple_parse_decl(message: str):

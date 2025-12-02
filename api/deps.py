@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from firebase_admin.auth import InvalidIdTokenError, ExpiredIdTokenError
 import core.firebase as firebase
+from fastapi import HTTPException
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -26,7 +27,8 @@ def get_current_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(bea
             )
         
     try:
-        decoded_token = firebase.auth_client.verify_id_token(token)
+        # Додаємо невеликий допуск по часу (макс 60 сек за Firebase SDK)
+        decoded_token = firebase.auth_client.verify_id_token(token, clock_skew_seconds=60)
         return decoded_token
     except (ExpiredIdTokenError, InvalidIdTokenError) as e:
         print(f"Token validation failed: {e}")
@@ -42,6 +44,21 @@ def get_current_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(bea
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    Проста перевірка адмінського доступу. Для dev дозволяємо uid=local-dev.
+    """
+    if current_user.get("uid") == "local-dev":
+        return current_user
+    if current_user.get("admin") or current_user.get("is_admin"):
+        return current_user
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Admin access required",
+    )
 
 
 

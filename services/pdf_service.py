@@ -99,11 +99,18 @@ class PDFService:
         font_title = load_font(50, bold=True)
         font_bold = load_font(42, bold=True)
         font_regular = load_font(36, bold=False)
-        font_small = load_font(28, bold=False)
+        font_small = load_font(24, bold=False)
         font_small_bold = load_font(30, bold=True)
 
         img = Image.new("RGB", (width, height), "white")
         draw = ImageDraw.Draw(img)
+
+        # Внешняя рамка робочої області (як у справжньої форми)
+        frame_x1 = margin_x - 40
+        frame_y1 = margin_y - 80
+        frame_x2 = width - margin_x + 40
+        frame_y2 = height - margin_y + 40
+        draw.rectangle((frame_x1, frame_y1, frame_x2, frame_y2), outline="black", width=2)
 
         def measure(text: str, font) -> tuple[int, int]:
             try:
@@ -267,7 +274,17 @@ class PDFService:
             draw.text((margin_x, y), text, fill="black", font=font)
             y += measure(text, font)[1] + 6
 
-        draw_line("I. Загальні відомості", font_bold)
+        def draw_section_title(text: str):
+            nonlocal y
+            draw.text((margin_x, y), text, fill="black", font=font_bold)
+            _, h = measure(text, font_bold)
+            line_y = y + h + 8  # більше повітря між заголовком і лінією
+            x1 = margin_x
+            x2 = width - margin_x
+            draw.line((x1, line_y, x2, line_y), fill="black", width=2)
+            y = line_y + 24  # опускаємо текст нижче від лінії
+
+        draw_section_title("I. Загальні відомості")
         draw_line(f"Прізвище, ім'я, по батькові: {context.get('full_name', '')}", font_regular)
         draw_line(
             f"Реєстраційний номер облікової картки платника податків: {context.get('tax_id', '')}",
@@ -276,30 +293,30 @@ class PDFService:
         draw_line(f"Звітний (податковий) період: {quarter_text}", font_regular)
         draw_line(f"Дата заповнення: {context.get('filled_date', '')}", font_regular)
 
-        y += 60
+        y += 70
 
         # ---------------- РОЗДІЛ II ----------------
-        draw_line("II. Дохід, що підлягає оподаткуванню", font_bold, extra_y=0)
+        draw_section_title("II. Дохід, що підлягає оподаткуванню")
         y += 40  # додатковий відступ перед таблицею
 
         def draw_table(start_y: int, rows: list[tuple[str, str]]) -> int:
             table_width = width - margin_x * 2
             col_split = margin_x + int(table_width * 0.70)
 
-            header_h = 90
-            row_h = 90
+            header_h = 80
+            row_h = 80
             x1, x2 = margin_x, margin_x + table_width
 
             draw.rectangle((x1, start_y, x2, start_y + header_h),
                            outline="black", fill=(240, 240, 240), width=2)
-            draw.line((col_split, start_y, col_split, start_y + header_h), fill="black", width=2)
+            draw.line((col_split, start_y, col_split, start_y + header_h), fill="black", width=1)
             draw.text((x1 + 22, start_y + 26), "Показник", fill="black", font=font_bold)
             draw.text((col_split + 22, start_y + 26), "Сума, грн", fill="black", font=font_bold)
 
             cur_y = start_y + header_h
             for label, amount in rows:
                 draw.rectangle((x1, cur_y, x2, cur_y + row_h), outline="black", width=2)
-                draw.line((col_split, cur_y, col_split, cur_y + row_h), fill="black", width=2)
+                draw.line((col_split, cur_y, col_split, cur_y + row_h), fill="black", width=1)
                 draw.text((x1 + 22, cur_y + 24), label, fill="black", font=font_regular)
                 aw, ah = measure(amount, font_regular)
                 draw.text((x2 - aw - 22, cur_y + 24), amount, fill="black", font=font_regular)
@@ -314,10 +331,10 @@ class PDFService:
         ]
         y = draw_table(y, rows_income)
 
-        y += 70
+        y += 80
 
         # ---------------- РОЗДІЛ III ----------------
-        draw_line("III. Розрахунок податкових зобов'язань з єдиного податку", font_bold, extra_y=0)
+        draw_section_title("III. Розрахунок податкових зобов'язань з єдиного податку")
         y += 40  # додатковий відступ перед другою таблицею
 
         rows_tax = [
@@ -348,7 +365,7 @@ class PDFService:
         draw.text((margin_x, y), signature, fill="black", font=font_regular)
 
         # ---------------- БЛОК КОНТРОЛЮЮЧОГО ОРГАНУ ----------------
-        y += 150
+        y += 140
         ctrl_title = "Ця частина заповнюється посадовою особою контролюючого органу"
         draw.text((margin_x, y), ctrl_title, fill="black", font=font_small_bold)
         y += measure(ctrl_title, font_small_bold)[1] + 18

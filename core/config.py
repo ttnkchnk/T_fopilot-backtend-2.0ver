@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # Pydantic автоматически прочитает переменную FRONTEND_ORIGIN из .env
     FRONTEND_ORIGIN: str
 
+    # 5. Автоінджест правових новин (кома-сепарейтед URL)
+    LEGAL_FEED_URLS: str | None = None
+
     # 5. НАЛОГИ (НОВАЯ ПЕРЕМЕННАЯ)
     # Значение по умолчанию будет использоваться, если переменной нет в .env
     MIN_SOCIAL_CONTRIBUTION_MONTHLY: float = 1760.00

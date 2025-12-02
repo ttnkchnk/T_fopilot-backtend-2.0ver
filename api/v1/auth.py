@@ -5,7 +5,7 @@ from firebase_admin.auth import EmailAlreadyExistsError
 
 from models.user import UserCreate, UserInDB, UserUpdate
 from services import auth_service
-from core.firebase import auth_client, db, ensure_initialized
+import core.firebase as firebase
 from api.deps import get_current_user
 from pydantic import BaseModel
 from typing import List
@@ -75,12 +75,23 @@ def register_user(user_data: UserCreate):
     та в базі даних Firestore.
     """
     try:
+        # Гарантуємо, що Firebase ініціалізовано (db + auth_client)
+        firebase.ensure_initialized()
+
+        # Перевіряємо мінімальну довжину пароля до виклику Firebase
+        if not isinstance(user_data.password, str) or len(user_data.password) < 6:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 6 characters long",
+            )
+
         # 1. Створюємо користувача в Firebase Authentication
-        user_record = auth_client.create_user(
+        user_record = firebase.auth_client.create_user(
             email=user_data.email,
             password=user_data.password,
             display_name=f"{user_data.first_name} {user_data.last_name}"
         )
+        print("[register] created firebase user:", user_record.uid)
 
         # 2. Створюємо профіль користувача в Firestore
         user_profile = auth_service.create_user_profile(
@@ -88,9 +99,10 @@ def register_user(user_data: UserCreate):
             email=user_data.email,
             first_name=user_data.first_name,
             last_name=user_data.last_name,
-            middle_name=getattr(user_data, "middle_name", None) if hasattr(user_data, "middle_name") else None,
+            middle_name=getattr(user_data, "middle_name", None),
             phone=user_data.phone,
         )
+        print("[register] created profile:", user_profile)
         return user_profile
 
     except EmailAlreadyExistsError:
@@ -99,9 +111,12 @@ def register_user(user_data: UserCreate):
             detail="Email already registered"
         )
     except Exception as e:
+        import traceback
+        print("[register] ERROR:", e)
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Registration failed"
         )
 
 
@@ -152,7 +167,7 @@ def complete_onboarding(
     Зберігає результат онбордингу в профілі користувача.
     """
     uid = current_user.get("uid")
-    local_db = ensure_initialized()
+    local_db = firebase.ensure_initialized()
     try:
         doc_ref = local_db.collection("users").document(uid)
         doc_ref.update({

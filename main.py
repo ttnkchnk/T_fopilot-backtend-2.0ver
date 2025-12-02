@@ -1,18 +1,37 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from database import Database
-from services.scheduler import start_scheduler
+from services.scheduler import start_scheduler, scheduler
 from core.firebase import initialize_firebase
-from api.v1 import auth, taxes, chat, income, stats, expenses, documents, clients, currency, forms, calendar
+from core.config import settings
+from api.v1 import auth, taxes, chat, income, stats, expenses, documents, clients, currency, forms, calendar, legal_admin, legal
 
-app = FastAPI(title="FOPilot v2")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    initialize_firebase()
+    Database.initialize()
+    start_scheduler()
+    yield
+    if scheduler:
+        scheduler.shutdown()
+
+
+app = FastAPI(title="FOPilot v2", lifespan=lifespan)
 
 # Налаштування CORS (щоб фронтенд мав доступ)
+origins = [o.strip() for o in settings.FRONTEND_ORIGIN.split(",") if o.strip()] or [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,13 +53,8 @@ app.include_router(clients.router, prefix="/api/v1/clients", tags=["Clients"])
 app.include_router(currency.router, prefix="/api/v1/currency", tags=["Currency"])
 app.include_router(calendar.router, prefix="/api/v1", tags=["Calendar"])
 app.include_router(forms.router, prefix="/api/v1", tags=["Forms"])
-
-
-@app.on_event("startup")
-async def startup_event():
-    initialize_firebase()
-    Database.initialize()
-    # start_scheduler() # Можна розкоментувати, якщо хочеш авто-курси валют
+app.include_router(legal.router, prefix="/api/v1", tags=["Legal"])
+app.include_router(legal_admin.router, prefix="/api/v1", tags=["Legal Admin"])
 
 
 @app.get("/")

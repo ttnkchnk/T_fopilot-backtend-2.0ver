@@ -48,6 +48,9 @@ def update_user_profile(uid: str, data: UserUpdate) -> UserInDB:
     1. Firebase Authentication (для display_name)
     2. Firestore (для first_name, last_name)
     """
+    # 0. Гарантируем инициализацию Firebase (Auth + Firestore)
+    if firebase.db is None or firebase.auth_client is None:
+        firebase.initialize_firebase()
     
     # 1. Обновляем Firebase Authentication (чтобы 'display_name' совпадало)
     try:

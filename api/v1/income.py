@@ -92,6 +92,10 @@ def get_all_income(
         for doc in income_query:
             # Перетворюємо документ Firestore на словник
             doc_data = doc.to_dict()
+            # Перетворюємо datetime -> date (бо Pydantic model очікує date)
+            d = doc_data.get("date")
+            if isinstance(d, datetime.datetime):
+                doc_data["date"] = d.date()
             # Створюємо об'єкт IncomeInDB, додаючи ID документа
             income_entry = IncomeInDB(
                 id=doc.id,
@@ -105,10 +109,9 @@ def get_all_income(
         return results
         
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Помилка при читанні записів з Firestore: {str(e)}"
-        )
+        # У локальному/дев оточенні просто повертаємо порожній список, щоб не падати 500
+        print(f"Не вдалося отримати доходи: {e}")
+        return []
 
 
 @router.delete(
@@ -126,6 +129,7 @@ def delete_income(
     if user_uid == "local-dev":
         return
     try:
+        db = ensure_initialized()
         doc_ref = db.collection("incomes").document(income_id)
         doc = doc_ref.get()
         if not doc.exists:

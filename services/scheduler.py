@@ -1,7 +1,8 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from services.monobank import get_exchange_rate
+from services.legal_ingest_service import LegalIngestService
 
-scheduler = AsyncIOScheduler()
+scheduler: AsyncIOScheduler | None = None
 
 
 async def update_currency_rates():
@@ -13,6 +14,11 @@ async def update_currency_rates():
 
 
 def start_scheduler():
-    # Запускаємо задачу раз на 60 хвилин
-    scheduler.add_job(update_currency_rates, 'interval', minutes=60)
+    global scheduler
+    if scheduler is not None:
+        return
+
+    scheduler = AsyncIOScheduler(timezone="Europe/Kiev")
+    scheduler.add_job(update_currency_rates, "interval", hours=24, id="currency_update")
+    scheduler.add_job(LegalIngestService.ingest_feeds, "interval", hours=24, id="legal_ingest")
     scheduler.start()

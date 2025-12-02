@@ -64,7 +64,7 @@ class DocumentService:
         full_path = user_dir / filename
         full_path.write_bytes(pdf_bytes)
 
-        created_at = datetime.utcnow().isoformat()
+        created_at = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
         meta = {
             "id": doc_id,
             "userId": user_id,
@@ -116,14 +116,24 @@ class DocumentService:
                 docs.append(d)
 
         def _ts(val):
-            if hasattr(val, "datetime"):
-                return val.datetime()
-            if isinstance(val, str):
-                try:
-                    return datetime.fromisoformat(val)
-                except Exception:
-                    return 0
-            return val or 0
+            """
+            Перетворюємо різні формати часу у timestamp для безпечного сортування.
+            """
+            try:
+                if hasattr(val, "datetime"):
+                    return val.datetime().timestamp()
+                if isinstance(val, datetime):
+                    return val.timestamp()
+                if isinstance(val, str):
+                    try:
+                        # підтримка суфіксу Z
+                        v = val.replace("Z", "+00:00")
+                        return datetime.fromisoformat(v).timestamp()
+                    except Exception:
+                        return 0
+            except Exception:
+                return 0
+            return 0
 
         docs.sort(key=lambda d: _ts(d.get("createdAt")), reverse=True)
         return docs
