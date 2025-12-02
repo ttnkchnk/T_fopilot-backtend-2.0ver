@@ -2,6 +2,7 @@
 
 import google.generativeai as genai
 from core.config import settings
+import json
 
 
 try:
@@ -24,25 +25,17 @@ async def get_gemini_response(user_message: str, user_context: str) -> str:
     # Це наш "системний промпт". Він каже боту, ким він має бути.
     # Ми додаємо в нього user_context, який отримали з бази даних.
     system_prompt = f"""
-    Ти — FOPilot, корисний ШІ-помічник для українських ФОП.
-    Твоя місія — чітко і професійно відповідати на питання, пов'язані з веденням ФОП.
-    
-    ВАЖЛИВО: Ти спілкуєшся з конкретним користувачем. Ось його контекст,
-    який ти МАЄШ використовувати для надання персоналізованих відповідей:
-    ---
-    {user_context}
-    ---
-    
-    Завжди відповідай українською мовою.
-    Відповідай виключно звичайним текстом (plain text).
+Ти — FOPilot, помічник для ФОП. Відповідай коротко (1–3 речення), тільки по суті запиту.
+Не повторюй контекст користувача і не дублюй його питання.
 
-ЗАБОРОНЕНО використовувати Markdown форматування (ніяких зірочок ** для жирного шрифту, ніяких _ для курсиву, ніяких заголовків #).
+Контекст користувача:
+{user_context}
 
-ЗАБОРОНЕНО використовувати LaTeX або математичні формули (ніяких $$, \frac, \text).
-
-Пиши суми та розрахунки у простому зрозумілому форматі (наприклад: '134 000 / 3 = 44 666.67 грн').
-
-Не використовуй таблиці, використовуй прості списки.
+Правила:
+- Мова: українська.
+- Тільки plain text, без Markdown/LaTeX.
+- Якщо запит про розрахунок/процедуру — дай стислий алгоритм у кількох пунктах.
+- Якщо це не по темі ФОП — ввічливо відмовся.
     """
     
     try:
@@ -64,4 +57,33 @@ async def get_gemini_response(user_message: str, user_context: str) -> str:
         return "Вибачте, сталася помилка під час обробки вашого запиту до ШІ."
 
 
-
+async def detect_intent(user_message: str) -> dict | None:
+    """
+    Питає модель про структуру команди і повертає JSON з intent + полями.
+    Очікувані intent:
+      - add_income {amount, currency?, date?, description?}
+      - add_expense {amount, currency?, date?, description?}
+      - create_declaration {year, quarter}
+    """
+    if not model:
+        return None
+    prompt = f"""
+Визнач команду користувача. Поверни ТІЛЬКИ JSON без пояснень.
+intent: add_income | add_expense | create_declaration | none
+add_income/add_expense: amount (number), currency (UAH якщо не вказано), date (YYYY-MM-DD або ""), description.
+create_declaration: year (number), quarter (1..4).
+Якщо нічого з цього не підходить — intent: "none".
+Повідомлення: "{user_message}"
+"""
+    try:
+        resp = await model.generate_content_async(prompt)
+        text = resp.text if hasattr(resp, "text") else ""
+        text = text.strip().strip("`")
+        # інколи модель обгортає json в ```json ... ```
+        if text.startswith("json"):
+            text = text[4:]
+        parsed = json.loads(text)
+        return parsed
+    except Exception as e:
+        print(f"detect_intent parse failed: {e}")
+        return None

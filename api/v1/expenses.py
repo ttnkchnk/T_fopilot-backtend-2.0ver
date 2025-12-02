@@ -41,6 +41,8 @@ def create_expense(
     Створює новий запис про витрати для поточного користувача.
     """
     user_uid = current_user.get("uid")
+    if user_uid == "local-dev":
+        return ExpenseInDB(id="local-dev", user_uid=user_uid, **expense_data.dict())
     
     new_expense_data = expense_data.dict()
     new_expense_data["user_uid"] = user_uid
@@ -79,6 +81,8 @@ def get_all_expenses(
     Отримує список усіх записів про витрати для поточного користувача.
     """
     user_uid = current_user.get("uid")
+    if user_uid == "local-dev":
+        return []
     
     try:
         db = ensure_initialized()
@@ -123,6 +127,8 @@ def delete_expense(
     Видаляє запис про витрату поточного користувача.
     """
     user_uid = current_user.get("uid")
+    if user_uid == "local-dev":
+        return
     try:
         doc_ref = db.collection("expenses").document(expense_id)
         doc = doc_ref.get()

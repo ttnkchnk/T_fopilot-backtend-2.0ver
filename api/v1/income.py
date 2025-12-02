@@ -38,6 +38,8 @@ def create_income(
     Створює новий запис про дохід для поточного користувача.
     """
     user_uid = current_user.get("uid")
+    if user_uid == "local-dev":
+        return IncomeInDB(id="local-dev", user_uid=user_uid, **income_data.dict())
     
     new_income_data = income_data.dict()
     new_income_data["user_uid"] = user_uid
@@ -78,6 +80,8 @@ def get_all_income(
     Отримує список усіх записів про доходи для поточного користувача.
     """
     user_uid = current_user.get("uid")
+    if user_uid == "local-dev":
+        return []
     
     try:
         db = ensure_initialized()
@@ -119,6 +123,8 @@ def delete_income(
     Видаляє запис про дохід поточного користувача.
     """
     user_uid = current_user.get("uid")
+    if user_uid == "local-dev":
+        return
     try:
         doc_ref = db.collection("incomes").document(income_id)
         doc = doc_ref.get()

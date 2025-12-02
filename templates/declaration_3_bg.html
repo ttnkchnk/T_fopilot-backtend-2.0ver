@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "DejaVu Sans", sans-serif;
+      font-size: 9pt;
+    }
+
+    .page {
+      position: relative;
+      width: 210mm;
+      height: 297mm;
+      page-break-after: always;
+      overflow: hidden;
+    }
+
+    .bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 210mm;
+      height: 297mm;
+      z-index: 0;
+    }
+
+    .field {
+      position: absolute;
+      z-index: 1;
+      white-space: nowrap;
+    }
+
+    /* ====== ПРИМЕР КООРДИНАТ (потом подправишь) ====== */
+
+    /* Строчка с ПІБ (раздел I) */
+    #full_name {
+      top: 82mm;   /* вертикаль */
+      left: 35mm;  /* горизонталь */
+    }
+
+    /* ІПН / ЄДРПОУ */
+    #tax_id {
+      top: 91mm;
+      left: 35mm;
+    }
+
+    /* Рік (в правой части) */
+    #year {
+      top: 66mm;
+      left: 165mm;
+    }
+
+    /* Квартал (где "три квартали / рік") — можешь вывести "I квартал 2025" */
+    #period {
+      top: 66mm;
+      left: 120mm;
+    }
+
+    /* Розділ II, рядок 1, графа 5% (сума доходу) */
+    #r1_5 {
+      top: 148mm;
+      left: 160mm;
+      text-align: right;
+      width: 30mm;
+    }
+
+    /* Розділ II, рядок 4 (загальна сума) */
+    #r4_total {
+      top: 165mm;
+      left: 160mm;
+      text-align: right;
+      width: 30mm;
+    }
+
+    /* Розділ III, рядок 6, 5% — сума ЄП */
+    #r6_5 {
+      top: 190mm;
+      left: 160mm;
+      text-align: right;
+      width: 30mm;
+    }
+
+    /* Рядок 8, 5% */
+    #r8_5 {
+      top: 205mm;
+      left: 160mm;
+      text-align: right;
+      width: 30mm;
+    }
+
+    /* Рядок 12, 5% */
+    #r12_5 {
+      top: 230mm;
+      left: 160mm;
+      text-align: right;
+      width: 30mm;
+    }
+
+    /* Страница 2: дата и ПІБ внизу */
+    #filled_date {
+      top: 250mm;
+      left: 40mm;
+    }
+
+    #officer_name {
+      top: 260mm;
+      left: 90mm;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== СТРАНИЦА 1 ===== -->
+  <div class="page">
+    <span class="field" id="full_name">{{ full_name }}</span>
+    <span class="field" id="tax_id">{{ tax_id }}</span>
+    <span class="field" id="year">{{ year }}</span>
+    <span class="field" id="period">{{ period_text }}</span>
+
+    <span class="field" id="r1_5">{{ total_income }}</span>
+    <span class="field" id="r4_total">{{ total_income }}</span>
+
+    <span class="field" id="r6_5">{{ single_tax }}</span>
+    <span class="field" id="r8_5">{{ single_tax }}</span>
+    <span class="field" id="r12_5">{{ single_tax }}</span>
+  </div>
+
+  <!-- ===== СТРАНИЦА 2 ===== -->
+  <div class="page">
+    <span class="field" id="filled_date">{{ filled_date }}</span>
+    <span class="field" id="officer_name">{{ full_name }}</span>
+  </div>
+
+</body>
+</html>

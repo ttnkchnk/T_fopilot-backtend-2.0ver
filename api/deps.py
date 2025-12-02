@@ -1,20 +1,20 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
 from firebase_admin.auth import InvalidIdTokenError, ExpiredIdTokenError
 import core.firebase as firebase
 
-# ↓↓↓ МЫ МЕНЯЕМ ЭТУ СТРОКУ ↓↓↓
-# БЫЛО: oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-# СТАЛО:
-bearer_scheme = HTTPBearer()
+bearer_scheme = HTTPBearer(auto_error=False)
 
-# ↓↓↓ И МЫ МЕНЯЕМ ЭТУ ФУНКЦИЮ ↓↓↓
-def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_scheme)) -> dict:
+def get_current_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)) -> dict:
     """
     Проверяет Firebase ID Token (который приходит как Bearer token).
+    Якщо токена немає — повертає локального користувача для dev.
+    Якщо токен є, але прострочений/невірний — повертає 401, щоб фронт оновив сесію.
     """
-    
-    # Токен теперь находится внутри creds.credentials
+    if not creds or not creds.credentials:
+        return {"uid": "local-dev"}
+
     token = creds.credentials
 
     if firebase.auth_client is None:
@@ -28,19 +28,15 @@ def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_scheme
     try:
         decoded_token = firebase.auth_client.verify_id_token(token)
         return decoded_token
-    except ExpiredIdTokenError:
+    except (ExpiredIdTokenError, InvalidIdTokenError) as e:
+        print(f"Token validation failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
+            detail="Token invalid or expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except InvalidIdTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except Exception:
+    except Exception as e:
+        print(f"Token validation error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from database import Database
 from services.scheduler import start_scheduler
 from core.firebase import initialize_firebase
-from api.v1 import auth, taxes, chat, income, stats, expenses, documents, clients, currency
+from api.v1 import auth, taxes, chat, income, stats, expenses, documents, clients, currency, forms, calendar
 
 app = FastAPI(title="FOPilot v2")
 
@@ -32,6 +32,8 @@ app.include_router(expenses.router, prefix="/api/v1/expenses", tags=["Expenses"]
 app.include_router(documents.router, prefix="/api/v1/documents", tags=["Documents"])
 app.include_router(clients.router, prefix="/api/v1/clients", tags=["Clients"])
 app.include_router(currency.router, prefix="/api/v1/currency", tags=["Currency"])
+app.include_router(calendar.router, prefix="/api/v1", tags=["Calendar"])
+app.include_router(forms.router, prefix="/api/v1", tags=["Forms"])
 
 
 @app.on_event("startup")

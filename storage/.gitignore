@@ -1,0 +1,5 @@
+# Ignore all generated documents and binaries
+documents/
+
+# Keep the directory
+!.gitignore

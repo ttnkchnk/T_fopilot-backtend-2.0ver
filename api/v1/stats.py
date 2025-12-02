@@ -1,6 +1,7 @@
 # api/v1/stats.py
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 import datetime
 
@@ -10,6 +11,21 @@ import core.firebase as firebase # Потрібен 'auth_client' для дат�
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 router = APIRouter()
+bearer_optional = HTTPBearer(auto_error=False)
+
+
+def resolve_current_user(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer_optional),
+):
+    """
+    Дозволяє фолбек на локального користувача без токена.
+    """
+    if creds:
+        try:
+            return get_current_user(creds)  # type: ignore[arg-type]
+        except Exception as e:
+            print(f"Token validation failed, fallback to local: {e}")
+    return {"uid": "local-dev"}
 
 # Модель, яку ми повернемо фронтенду
 class UserStats(BaseModel):
@@ -19,12 +35,14 @@ class UserStats(BaseModel):
 
 @router.get("/", response_model=UserStats)
 def get_user_stats(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(resolve_current_user)
 ):
     """
     Збирає та повертає статистику для поточного користувача.
     """
     user_uid = current_user.get("uid")
+    if user_uid == "local-dev":
+        return UserStats(chat_questions=0, calculations=0, days_in_system=0)
     
     try:
         # --- 1. Запитань в чаті ---

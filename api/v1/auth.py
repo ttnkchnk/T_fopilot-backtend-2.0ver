@@ -5,7 +5,7 @@ from firebase_admin.auth import EmailAlreadyExistsError
 
 from models.user import UserCreate, UserInDB, UserUpdate
 from services import auth_service
-from core.firebase import auth_client, db
+from core.firebase import auth_client, db, ensure_initialized
 from api.deps import get_current_user
 from pydantic import BaseModel
 from typing import List
@@ -152,8 +152,9 @@ def complete_onboarding(
     Зберігає результат онбордингу в профілі користувача.
     """
     uid = current_user.get("uid")
+    local_db = ensure_initialized()
     try:
-        doc_ref = db.collection("users").document(uid)
+        doc_ref = local_db.collection("users").document(uid)
         doc_ref.update({
             "onboarding_completed": True,
             "onboarding_data": onboarding_data.dict(),

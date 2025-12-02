@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: sans-serif; font-size: 12px; }
+    .title { text-align: center; font-weight: bold; margin-bottom: 8px; }
+    .field-label { font-size: 10px; color: #555; }
+    .field-box { border-bottom: 1px solid #000; min-width: 120px; display: inline-block; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    td, th { border: 1px solid #000; padding: 4px; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div class="title">
+    Податкова декларація платника єдиного податку – фізичної особи-підприємця (III група)
+  </div>
+
+  <div>
+    <span class="field-label">Рік:</span>
+    <span class="field-box">{{ year }}</span>
+    &nbsp;&nbsp;
+    <span class="field-label">Звітний період (квартал):</span>
+    <span class="field-box">{{ quarter_text }}</span>
+  </div>
+
+  <div style="margin-top: 8px;">
+    <span class="field-label">Прізвище, ім'я, по батькові:</span>
+    <span class="field-box">{{ full_name }}</span>
+  </div>
+
+  <div style="margin-top: 4px;">
+    <span class="field-label">РНОКПП:</span>
+    <span class="field-box">{{ tax_id }}</span>
+  </div>
+
+  <!-- Пример таблицы с суммами -->
+  <table>
+    <tr>
+      <th>Рядок</th>
+      <th>Найменування показника</th>
+      <th>Сума, грн</th>
+    </tr>
+    <tr>
+      <td>1</td>
+      <td>Обсяг доходу за звітний період</td>
+      <td style="text-align: right;">{{ total_income }}</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>Сума єдиного податку (5 %)</td>
+      <td style="text-align: right;">{{ single_tax }}</td>
+    </tr>
+    <!-- и т.д. по нужным строкам -->
+  </table>
+
+  <div style="margin-top: 16px;">
+    <span class="field-label">Дата заповнення:</span>
+    <span class="field-box">{{ filled_date }}</span>
+  </div>
+</body>
+</html>
